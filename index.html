@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keyworder — microstock metadata generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1c1b19;
+    --panel: #242220;
+    --panel-raised: #2b2925;
+    --paper: #ece5d6;
+    --paper-dim: #d8cfba;
+    --ink: #efe9dc;
+    --ink-dim: #a89f8e;
+    --hairline: #3c382f;
+    --accent: #c1442d;
+    --accent-dim: #7d3223;
+    --amber: #c98a2d;
+    --ok: #7d9b73;
+    --radius: 3px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at top left, rgba(193,68,45,0.05), transparent 55%),
+      radial-gradient(ellipse at bottom right, rgba(255,255,255,0.02), transparent 50%);
+    color: var(--ink);
+    font-family: 'Archivo', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono{ font-family: 'IBM Plex Mono', 'SFMono-Regular', monospace; }
+
+  .wrap{ max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header.top{
+    display:flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 22px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  header.top h1{
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  header.top h1 span{ color: var(--accent); }
+  header.top p{
+    margin: 4px 0 0;
+    color: var(--ink-dim);
+    font-size: 13.5px;
+    max-width: 46ch;
+  }
+  .header-right{ display:flex; align-items:center; gap: 10px; flex-shrink: 0; }
+  .provider-pill{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    border: 1px solid var(--hairline);
+    padding: 5px 10px;
+    border-radius: var(--radius);
+  }
+  .provider-pill b{ color: var(--ink); font-weight: 500; }
+  .icon-btn{
+    width: 34px; height: 34px;
+    display:flex; align-items:center; justify-content:center;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink-dim);
+    cursor: pointer;
+    padding: 0;
+  }
+  .icon-btn:hover{ color: var(--ink); border-color: var(--ink-dim); }
+  .icon-btn svg{ width: 16px; height: 16px; }
+
+  /* Dropzone */
+  .dropzone{
+    border: 1px dashed var(--hairline);
+    border-radius: var(--radius);
+    padding: 30px 24px;
+    text-align: left;
+    cursor: pointer;
+    background: var(--panel);
+    transition: border-color .15s ease, background .15s ease;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color: var(--accent);
+    background: var(--panel-raised);
+  }
+  .dropzone .dz-label{ font-size: 15px; font-weight: 500; }
+  .dropzone .dz-sub{ color: var(--ink-dim); font-size: 12.5px; margin-top: 3px; }
+  .dropzone button{ flex-shrink: 0; }
+  input[type=file]{ display:none; }
+
+  button{
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius);
+    padding: 9px 16px;
+    border: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+  }
+  button:hover{ border-color: var(--ink-dim); }
+  button.primary{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #f7f1e6;
+  }
+  button.primary:hover{ background: var(--accent-dim); border-color: var(--accent-dim); }
+  button:disabled{ opacity: .4; cursor: default; }
+  button.small{ padding: 5px 10px; font-size: 11.5px; }
+  button.ghost{ border-color: transparent; color: var(--ink-dim); padding: 4px 8px; }
+  button.ghost:hover{ color: var(--ink); border-color: var(--hairline); }
+
+  /* Filmstrip */
+  .filmstrip{
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    margin: 20px 0 34px;
+    padding-bottom: 6px;
+  }
+  .filmstrip:empty{ display:none; }
+  .frame{
+    position: relative;
+    flex: 0 0 auto;
+    width: 74px;
+    height: 74px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 2px solid transparent;
+    cursor: pointer;
+    background: #000;
+  }
+  .frame img{ width:100%; height:100%; object-fit: cover; display:block; opacity: .75; }
+  .frame.active{ border-color: var(--accent); }
+  .frame.active img{ opacity: 1; }
+  .frame .status{
+    position:absolute; top:4px; right:4px;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--amber);
+  }
+  .frame .status.done{ background: var(--ok); }
+  .frame .status.error, .frame .status.blocked{ background: var(--accent); }
+  .frame .status.processing{ animation: pulse 1s ease-in-out infinite; }
+  .frame .rm{
+    position:absolute; bottom:0; left:0; right:0;
+    background: rgba(0,0,0,.6);
+    color:#fff; font-size: 10px; text-align:center;
+    padding: 2px 0; opacity: 0;
+    transition: opacity .15s;
+  }
+  .frame:hover .rm{ opacity: 1; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+
+  /* Main layout */
+  .stage{
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 30px;
+    align-items: start;
+  }
+  @media (max-width: 800px){ .stage{ grid-template-columns: 1fr; } }
+
+  .mat{
+    background: var(--paper);
+    padding: 14px;
+    border-radius: var(--radius);
+    position: sticky;
+    top: 24px;
+  }
+  .mat img{ width: 100%; display: block; border-radius: 2px; }
+  .mat .fname{ color: #4a4436; font-size: 11px; margin-top: 10px; word-break: break-all; }
+
+  .empty-state{
+    color: var(--ink-dim);
+    font-size: 14px;
+    padding: 60px 0;
+    text-align: center;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+  }
+
+  .panel{ min-width: 0; }
+
+  .desc{ font-size: 14px; color: var(--ink-dim); line-height: 1.55; margin: 0 0 16px; }
+
+  .flagbar{
+    background: rgba(201,138,45,0.12);
+    border: 1px solid var(--amber);
+    color: #e0b473;
+    font-size: 12.5px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .flagbar b{ color: var(--amber); }
+
+  .tabs{ display: flex; gap: 22px; border-bottom: 1px solid var(--hairline); margin-bottom: 20px; }
+  .tab{
+    background: none; border: none; padding: 8px 0;
+    color: var(--ink-dim); font-size: 13.5px; font-weight: 500;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 0;
+  }
+  .tab:hover{ color: var(--ink); border-color: transparent; }
+  .tab.active{ color: var(--ink); border-bottom-color: var(--accent); }
+
+  .field{ margin-bottom: 24px; }
+  .field-head{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 8px; }
+  .field-head label{ font-size: 11px; color: var(--ink-dim); }
+  .title-text{
+    font-size: 16px; line-height: 1.5; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--radius);
+  }
+  .kw-count{ color: var(--ink-dim); font-size: 11px; }
+
+  .kwlist{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .kw{
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    padding: 5px 9px; border: 1px solid var(--hairline); border-radius: 2px;
+    background: var(--panel); color: var(--paper-dim);
+  }
+  .kw:nth-child(-n+7){ border-color: #56503f; color: var(--ink); }
+
+  .cat-row{
+    display:flex; gap: 28px; flex-wrap: wrap;
+    font-size: 12.5px; color: var(--ink-dim);
+    padding-top: 6px; margin-top: 6px; border-top: 1px solid var(--hairline);
+  }
+  .cat-row b{ color: var(--ink); font-weight: 500; }
+
+  .error-box{
+    color: var(--accent); font-size: 13px; padding: 14px;
+    border: 1px solid var(--accent-dim); border-radius: var(--radius);
+    background: rgba(193,68,45,0.08);
+  }
+  .warn-box{
+    color: var(--amber); font-size: 13px; padding: 14px;
+    border: 1px solid var(--amber); border-radius: var(--radius);
+    background: rgba(201,138,45,0.08);
+  }
+  .center-note{ text-align:center; color: var(--ink-dim); font-size: 13px; padding: 40px 0; }
+
+  .export-row{
+    display:flex; gap: 10px; flex-wrap: wrap; margin-top: 40px;
+    padding-top: 20px; border-top: 1px solid var(--hairline);
+  }
+  .export-row p{ width:100%; margin: 0 0 10px; font-size: 12px; color: var(--ink-dim); }
+
+  .toast{
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: var(--panel-raised); border: 1px solid var(--hairline);
+    padding: 9px 16px; border-radius: var(--radius);
+    font-size: 12.5px; color: var(--ink);
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 200;
+  }
+  .toast.show{ opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  /* Settings modal */
+  .modal-overlay{
+    position: fixed; inset: 0; background: rgba(10,9,8,0.7);
+    display:none; align-items: flex-start; justify-content: center;
+    padding: 6vh 20px; overflow-y: auto; z-index: 150;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal{
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    width: 100%; max-width: 560px;
+    padding: 26px 26px 22px;
+  }
+  .modal-head{ display:flex; align-items:flex-start; justify-content: space-between; margin-bottom: 4px; }
+  .modal-head h2{ font-size: 17px; margin: 0; font-weight: 700; }
+  .modal-head p{ font-size: 12.5px; color: var(--ink-dim); margin: 4px 0 0; max-width: 42ch; }
+
+  .provider-block{ padding: 18px 0; border-top: 1px solid var(--hairline); }
+  .provider-block:first-of-type{ border-top: none; padding-top: 20px; }
+  .provider-head{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 4px; }
+  .provider-head .name{ font-size: 14px; font-weight: 600; }
+  .provider-head .hint{ font-size: 11.5px; color: var(--ink-dim); margin-top: 2px; }
+  .provider-head .hint a{ color: var(--ink-dim); }
+
+  .badge{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid var(--hairline);
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .badge.connected{ color: var(--ok); border-color: var(--ok); }
+  .badge.invalid{ color: var(--accent); border-color: var(--accent-dim); }
+  .badge.testing{ color: var(--amber); border-color: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
+
+  .key-row{ display:flex; gap: 8px; margin-top: 10px; }
+  .key-input-wrap{ position: relative; flex: 1; min-width: 0; }
+  .key-input-wrap input{
+    width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
+    padding: 9px 38px 9px 11px;
+    background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius);
+    color: var(--ink);
+  }
+  .key-input-wrap input:focus{ outline: none; border-color: var(--ink-dim); }
+  .key-input-wrap .eye{
+    position:absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; padding: 4px; color: var(--ink-dim); cursor:pointer;
+  }
+  .key-input-wrap .eye:hover{ color: var(--ink); }
+  .key-input-wrap .eye svg{ width: 15px; height: 15px; display:block; }
+
+  .key-actions{ display:flex; gap: 8px; margin-top: 10px; }
+  .key-msg{ font-size: 11.5px; margin-top: 8px; line-height: 1.5; }
+  .key-msg.ok{ color: var(--ok); }
+  .key-msg.err{ color: var(--accent); }
+  .key-preview{ font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); margin-top: 6px; }
+
+  .provider-select{ display:flex; gap: 16px; margin-top: 4px; }
+  .provider-select label{ display:flex; align-items:center; gap: 6px; font-size: 12.5px; color: var(--ink-dim); cursor:pointer; }
+  .provider-select input{ accent-color: var(--accent); }
+
+  .storage-note{
+    font-size: 11.5px; color: var(--ink-dim); line-height: 1.55;
+    margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--hairline);
+  }
+  .modal-close{ align-self: flex-start; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Key<span>worder</span></h1>
+      <p>Upload product, lifestyle, or concept photography and get ranked, platform-specific titles and keywords for Adobe Stock, Shutterstock, iStock/Getty, and Freepik/Vecteezy.</p>
+    </div>
+    <div class="header-right">
+      <div class="provider-pill" id="providerPill">Provider: <b>none</b></div>
+      <button class="icon-btn" id="settingsBtn" title="Settings" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="dropzone" id="dropzone">
+    <div>
+      <div class="dz-label">Drop images here, or click to browse</div>
+      <div class="dz-sub">JPG, PNG, or WebP · uses your own Gemini, Claude, or Groq key, set in Settings · nothing is stored on any server</div>
+    </div>
+    <button class="primary" type="button" id="browseBtn">Choose images</button>
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple>
+  </div>
+
+  <div class="filmstrip" id="filmstrip"></div>
+
+  <div class="stage" id="stage" style="display:none;">
+    <div class="mat" id="mat"></div>
+    <div class="panel" id="panel"></div>
+  </div>
+
+  <div class="empty-state" id="emptyState">No images yet — add one above to generate its metadata.</div>
+
+  <div id="exportSection"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>Settings</h2>
+        <p>Add your own API key for at least one provider. Keys are used only to talk to that provider directly from your browser.</p>
+      </div>
+      <button class="icon-btn modal-close" id="closeSettingsBtn" title="Close" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="provider-block">
+      <div class="provider-head">
+        <div>
+          <div class="name">Gemini API key</div>
+          <div class="hint">Get one at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a></div>
+        </div>
+        <span class="badge" id="badge-gemini">Not set</span>
+      </div>
+      <div class="key-row">
+        <div class="key-input-wrap">
+          <input type="password" id="input-gemini" placeholder="AIza…" autocomplete="off" spellcheck="false">
+          <button class="eye" type="button" onclick="toggleShow('gemini')" title="Show / hide">
+            <svg id="eye-gemini" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="key-actions">
+        <button class="small" onclick="testConnection('gemini')" id="test-gemini">Test connection</button>
+        <button class="small ghost" onclick="clearKey('gemini')">Clear</button>
+      </div>
+      <div class="key-msg" id="msg-gemini"></div>
+    </div>
+
+    <div class="provider-block">
+      <div class="provider-head">
+        <div>
+          <div class="name">Claude API key</div>
+          <div class="hint">Via <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> or agentrouter</div>
+        </div>
+        <span class="badge" id="badge-claude">Not set</span>
+      </div>
+      <div class="key-row">
+        <div class="key-input-wrap">
+          <input type="password" id="input-claude" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+          <button class="eye" type="button" onclick="toggleShow('claude')" title="Show / hide">
+            <svg id="eye-claude" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="key-actions">
+        <button class="small" onclick="testConnection('claude')" id="test-claude">Test connection</button>
+        <button class="small ghost" onclick="clearKey('claude')">Clear</button>
+      </div>
+      <div class="key-msg" id="msg-claude"></div>
+    </div>
+
+    <div class="provider-block">
+      <div class="provider-head">
+        <div>
+          <div class="name">Groq API key</div>
+          <div class="hint">Get one at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></div>
+        </div>
+        <span class="badge" id="badge-groq">Not set</span>
+      </div>
+      <div class="key-row">
+        <div class="key-input-wrap">
+          <input type="password" id="input-groq" placeholder="gsk_…" autocomplete="off" spellcheck="false">
+          <button class="eye" type="button" onclick="toggleShow('groq')" title="Show / hide">
+            <svg id="eye-groq" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="key-actions">
+        <button class="small" onclick="testConnection('groq')" id="test-groq">Test connection</button>
+        <button class="small ghost" onclick="clearKey('groq')">Clear</button>
+      </div>
+      <div class="key-msg" id="msg-groq"></div>
+    </div>
+
+    <div class="provider-block">
+      <div class="provider-head"><div class="name">Use for generation</div></div>
+      <div class="provider-select">
+        <label><input type="radio" name="activeProvider" value="claude" onchange="setActiveProvider('claude')"> Claude</label>
+        <label><input type="radio" name="activeProvider" value="gemini" onchange="setActiveProvider('gemini')"> Gemini</label>
+        <label><input type="radio" name="activeProvider" value="groq" onchange="setActiveProvider('groq')"> Groq</label>
+      </div>
+    </div>
+
+    <div class="storage-note">
+      Your key is stored only in your browser (localStorage) and sent directly with each request to Gemini, Claude, or Groq — it is never saved on our servers, because this tool has no server: your browser talks to the provider's API directly.
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Key storage note (per project requirement):
+  Keys live in localStorage rather than sessionStorage so they survive
+  page reloads and new browser sessions — the tradeoff is that they persist
+  on this device until explicitly cleared (via the Clear button) rather than
+  disappearing when the tab closes. Anyone with access to this browser
+  profile/devtools can read localStorage, so don't use this on a shared machine
+  with a key you care about. Keys are never sent anywhere except directly to
+  the matching provider's API (generativelanguage.googleapis.com or
+  api.anthropic.com) — there is no backend in this app to relay, log, or
+  cache them through (generativelanguage.googleapis.com, api.anthropic.com,
+  or api.groq.com).
+*/
+
+const SYSTEM_PROMPT = `You are an expert microstock metadata strategist with 10+ years of experience
+in Adobe Stock, Shutterstock, iStock/Getty, Freepik, Dreamstime, and Vecteezy
+keyword ranking algorithms.
+
+Your job: analyze the given image and produce SEO-optimized, platform-specific
+metadata that maximizes discoverability without violating any platform's
+content or spam policies.
+
+## STRICT RULES (apply to every platform)
+
+1. NEVER include brand names, logos, trademarks, celebrity names, or
+   copyrighted character names — even if visible in the image.
+2. NEVER repeat the same keyword twice within one platform's output.
+3. NEVER stuff irrelevant trending keywords (e.g. adding "christmas" to a
+   summer photo) just to catch traffic — this is a policy violation.
+4. Titles must read as a natural, grammatically correct sentence or phrase
+   — NOT a comma-separated keyword list.
+5. Order keywords strictly by relevance: most commercially important terms
+   first. This is the single highest-leverage ranking factor.
+6. Cover all 6 keyword layers across the list: subject, action/concept,
+   mood/style, setting/composition, color, and buyer use-case
+   (e.g. "business", "healthcare", "social media banner").
+7. Include both literal keywords (what is visibly in the frame) and
+   conceptual keywords (what a buyer would type to search for this use
+   case — e.g. "teamwork", "sustainability", "work-life balance").
+8. Write everything in natural, buyer-intent language — think like someone
+   searching, not someone describing a photo to a friend.
+9. Match the requested output language exactly (default: English, unless
+   the user specifies another language for a specific marketplace).
+10. For every platform, include a minimum of 5 buyer use-case keywords
+    drawn from this fixed pool, selecting only the ones genuinely relevant
+    to the image — never force in a use-case that doesn't fit:
+    social media background, website background, banner background,
+    presentation background, app background, poster design, wallpaper,
+    packaging design, cover design, print design.
+    If fewer than 5 entries from this pool are genuinely relevant, still
+    include the 5 most plausible ones rather than falling short, but never
+    let them crowd out the literal/subject keywords required by rule 6.
+
+## PLATFORM-SPECIFIC SPECS
+
+### Adobe Stock
+- Title: max 200 characters, best practice ≤ 70 chars, natural sentence,
+  lead with subject + action + setting.
+- Keywords: 25–40 keywords, hard max 49, hard min 5. First 10 keywords
+  are weighted heaviest by Adobe Sensei — put the most commercially
+  relevant / conceptual terms there.
+- Keywords should be single words or short 2-word phrases, not long-tail
+  phrases.
+
+### Shutterstock
+- Title: 50–100 characters, readable descriptive sentence. Do not repeat
+  the exact title wording inside keywords.
+- Keywords: 30–40 keywords (max 50, min 7). First 7 keywords weighted
+  heaviest. Include broad AND specific synonyms (e.g. "sofa, couch").
+- Add relevant seasonal/trending terms ONLY if genuinely applicable.
+
+### iStock / Getty Images
+- Title: precise, factual, no embellishment.
+- Keywords: 20–30 keywords, highly literal and accurate. Include technical
+  details when relevant (lighting, angle, lens feel). For editorial content,
+  be specific about location, date context, and real event names if known.
+- Avoid conceptual/artsy keywords unless the image is clearly conceptual.
+
+### Freepik / Vecteezy / Dreamstime / 123RF
+- Title: short, clear, natural phrase (under 70 characters).
+- Keywords: 20–30 keywords balancing literal description with broad
+  use-case terms (business, holiday, education, template, etc.), since
+  these platforms reward broad concept-matching more than Adobe/Shutterstock.
+
+## OUTPUT FORMAT
+
+Return ONLY valid JSON, no markdown, no commentary, no code fences:
+
+{
+  "description": "1-2 sentence factual description of the image",
+  "platforms": {
+    "adobe_stock": {
+      "title": "...",
+      "keywords": ["...", "...", "..."]
+    },
+    "shutterstock": {
+      "title": "...",
+      "keywords": ["...", "...", "..."]
+    },
+    "istock_getty": {
+      "title": "...",
+      "keywords": ["...", "...", "..."]
+    },
+    "freepik_vecteezy": {
+      "title": "...",
+      "keywords": ["...", "...", "..."]
+    }
+  },
+  "category_suggestion": "best matching stock category name",
+  "flags": ["any policy risk, e.g. visible logo/trademark/face that needs release"]
+}
+
+If the image contains a recognizable brand, trademark, artwork, or a person's
+face, add a note in "flags" so the user knows a property/model release may be
+required — do not silently omit it, and do not refuse to keyword the rest of
+the image.`;
+
+const PLATFORM_META = {
+  adobe_stock:      { label: "Adobe Stock" },
+  shutterstock:      { label: "Shutterstock" },
+  istock_getty:      { label: "iStock / Getty" },
+  freepik_vecteezy:  { label: "Freepik / Vecteezy" }
+};
+const PLATFORM_ORDER = ["adobe_stock","shutterstock","istock_getty","freepik_vecteezy"];
+
+const LS_KEYS = {
+  gemini: 'mstock_gemini_key',
+  claude: 'mstock_claude_key',
+  groq: 'mstock_groq_key',
+  activeProvider: 'mstock_active_provider'
+};
+const PROVIDER_LABEL = { gemini: 'Gemini', claude: 'Claude', groq: 'Groq' };
+const CONSOLE_URL = {
+  gemini: 'https://aistudio.google.com/app/apikey',
+  claude: 'https://console.anthropic.com/settings/plans',
+  groq: 'https://console.groq.com/keys'
+};
+
+let items = [];      // {id, file, dataUrl, mediaType, status, result, error}
+let activeId = null;
+let activeTab = "adobe_stock";
+let seq = 0;
+
+let queue = [];
+let queueRunning = false;
+
+const settings = {
+  geminiKey: '',
+  claudeKey: '',
+  groqKey: '',
+  geminiStatus: 'not_set',   // not_set | testing | connected | invalid
+  claudeStatus: 'not_set',
+  groqStatus: 'not_set',
+  activeProvider: 'claude'
+};
+
+const el = {
+  dropzone: document.getElementById('dropzone'),
+  fileInput: document.getElementById('fileInput'),
+  browseBtn: document.getElementById('browseBtn'),
+  filmstrip: document.getElementById('filmstrip'),
+  stage: document.getElementById('stage'),
+  mat: document.getElementById('mat'),
+  panel: document.getElementById('panel'),
+  emptyState: document.getElementById('emptyState'),
+  exportSection: document.getElementById('exportSection'),
+  toast: document.getElementById('toast'),
+  providerPill: document.getElementById('providerPill'),
+  settingsBtn: document.getElementById('settingsBtn'),
+  closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+  settingsOverlay: document.getElementById('settingsOverlay')
+};
+
+/* ---------- Settings: load / persist ---------- */
+
+function loadSettings(){
+  settings.geminiKey = localStorage.getItem(LS_KEYS.gemini) || '';
+  settings.claudeKey = localStorage.getItem(LS_KEYS.claude) || '';
+  settings.groqKey = localStorage.getItem(LS_KEYS.groq) || '';
+  settings.geminiStatus = settings.geminiKey ? 'not_set' : 'not_set';
+  settings.claudeStatus = settings.claudeKey ? 'not_set' : 'not_set';
+  settings.groqStatus = settings.groqKey ? 'not_set' : 'not_set';
+  const savedProvider = localStorage.getItem(LS_KEYS.activeProvider);
+  if(savedProvider === 'gemini' || savedProvider === 'claude' || savedProvider === 'groq'){
+    settings.activeProvider = savedProvider;
+  }else{
+    settings.activeProvider = settings.claudeKey ? 'claude' : (settings.geminiKey ? 'gemini' : (settings.groqKey ? 'groq' : 'claude'));
+  }
+}
+
+function persistKey(provider){
+  const lsKey = LS_KEYS[provider];
+  const value = settings[provider + 'Key'];
+  if(value){ localStorage.setItem(lsKey, value); }
+  else{ localStorage.removeItem(lsKey); }
+}
+
+function hasAnyKey(){
+  return !!(settings.geminiKey || settings.claudeKey || settings.groqKey);
+}
+
+function redactKey(key){
+  if(!key) return '';
+  if(key.length <= 8) return '••••';
+  return key.slice(0, 4) + '···' + key.slice(-4);
+}
+
+/* ---------- Settings: UI wiring ---------- */
+
+document.getElementById('input-gemini').addEventListener('input', (e) => {
+  settings.geminiKey = e.target.value.trim();
+  settings.geminiStatus = 'not_set';
+  persistKey('gemini');
+  document.getElementById('msg-gemini').textContent = '';
+  renderSettingsUI();
+});
+document.getElementById('input-claude').addEventListener('input', (e) => {
+  settings.claudeKey = e.target.value.trim();
+  settings.claudeStatus = 'not_set';
+  persistKey('claude');
+  document.getElementById('msg-claude').textContent = '';
+  renderSettingsUI();
+});
+document.getElementById('input-groq').addEventListener('input', (e) => {
+  settings.groqKey = e.target.value.trim();
+  settings.groqStatus = 'not_set';
+  persistKey('groq');
+  document.getElementById('msg-groq').textContent = '';
+  renderSettingsUI();
+});
+
+el.settingsBtn.addEventListener('click', openSettings);
+el.closeSettingsBtn.addEventListener('click', closeSettings);
+el.settingsOverlay.addEventListener('click', (e) => { if(e.target === el.settingsOverlay) closeSettings(); });
+
+function openSettings(){
+  document.getElementById('input-gemini').value = settings.geminiKey;
+  document.getElementById('input-claude').value = settings.claudeKey;
+  document.getElementById('input-groq').value = settings.groqKey;
+  renderSettingsUI();
+  el.settingsOverlay.classList.add('open');
+}
+function closeSettings(){ el.settingsOverlay.classList.remove('open'); }
+
+function toggleShow(provider){
+  const input = document.getElementById('input-' + provider);
+  const isPw = input.type === 'password';
+  input.type = isPw ? 'text' : 'password';
+}
+
+function setActiveProvider(provider){
+  settings.activeProvider = provider;
+  localStorage.setItem(LS_KEYS.activeProvider, provider);
+  renderSettingsUI();
+  render();
+}
+
+function badgeLabel(status){
+  if(status === 'connected') return 'Connected';
+  if(status === 'invalid') return 'Invalid key';
+  if(status === 'testing') return 'Testing…';
+  return 'Not set';
+}
+
+function renderSettingsUI(){
+  ['gemini','claude','groq'].forEach(p => {
+    const badge = document.getElementById('badge-' + p);
+    const status = settings[p + 'Status'];
+    badge.textContent = badgeLabel(status);
+    badge.className = 'badge ' + status;
+    document.getElementById('test-' + p).disabled = (status === 'testing') || !settings[p + 'Key'];
+  });
+  document.querySelectorAll('input[name="activeProvider"]').forEach(r => {
+    r.checked = (r.value === settings.activeProvider);
+  });
+  el.providerPill.innerHTML = hasAnyKey()
+    ? `Provider: <b>${PROVIDER_LABEL[settings.activeProvider]}</b>`
+    : `Provider: <b>none set</b>`;
+}
+
+async function testConnection(provider){
+  const key = settings[provider + 'Key'];
+  if(!key) return;
+  settings[provider + 'Status'] = 'testing';
+  renderSettingsUI();
+  const msgEl = document.getElementById('msg-' + provider);
+  msgEl.textContent = '';
+  msgEl.className = 'key-msg';
+
+  try{
+    if(provider === 'gemini') await testGemini(key);
+    else if(provider === 'groq') await testGroq(key);
+    else await testClaude(key);
+    settings[provider + 'Status'] = 'connected';
+    msgEl.textContent = `Connected — key ${redactKey(key)} works.`;
+    msgEl.className = 'key-msg ok';
+    if(!localStorage.getItem(LS_KEYS.activeProvider)){
+      settings.activeProvider = provider;
+      localStorage.setItem(LS_KEYS.activeProvider, provider);
+    }
+    resumeBlockedItems();
+  }catch(err){
+    settings[provider + 'Status'] = (err.code === 'invalid_key') ? 'invalid' : 'invalid';
+    msgEl.textContent = err.message || 'Could not verify this key.';
+    msgEl.className = 'key-msg err';
+  }
+  renderSettingsUI();
+  render();
+}
+
+async function testGemini(key){
+  let response;
+  try{
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+  }catch(e){
+    throw apiError(0, 'gemini', null, 'Could not reach Gemini — check your network connection.');
+  }
+  if(!response.ok){
+    let data = null;
+    try{ data = JSON.parse(await response.text()); }catch(e){}
+    throw apiError(response.status, 'gemini', data);
+  }
+}
+
+async function testClaude(key){
+  let response;
+  try{
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] })
+    });
+  }catch(e){
+    throw apiError(0, 'claude', null, "Could not reach Claude directly from the browser. Some Anthropic keys don't allow direct browser calls (CORS) — check the console for details.");
+  }
+  if(!response.ok){
+    let data = null;
+    try{ data = JSON.parse(await response.text()); }catch(e){}
+    throw apiError(response.status, 'claude', data);
+  }
+}
+
+async function testGroq(key){
+  let response;
+  try{
+    response = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+  }catch(e){
+    throw apiError(0, 'groq', null, 'Could not reach Groq — check your network connection.');
+  }
+  if(!response.ok){
+    let data = null;
+    try{ data = JSON.parse(await response.text()); }catch(e){}
+    throw apiError(response.status, 'groq', data);
+  }
+}
+
+function clearKey(provider){
+  settings[provider + 'Key'] = '';
+  settings[provider + 'Status'] = 'not_set';
+  localStorage.removeItem(LS_KEYS[provider]);
+  document.getElementById('input-' + provider).value = '';
+  document.getElementById('msg-' + provider).textContent = '';
+  renderSettingsUI();
+  render();
+}
+
+/* ---------- Provider error classification ---------- */
+
+function apiError(status, provider, data, overrideMessage){
+  const label = PROVIDER_LABEL[provider];
+  let message = overrideMessage;
+  let code = 'other';
+  const providerMsg = data && (
+    (data.error && data.error.message) ||
+    (data.error && data.error.status) ||
+    (Array.isArray(data.error) && data.error[0] && data.error[0].message)
+  );
+  if(!message){
+    if(status === 401 || status === 403 || (providerMsg && /api key not valid|invalid api key|authentication/i.test(providerMsg))){
+      code = 'invalid_key';
+      message = `Your ${label} key was rejected — please check it in Settings.`;
+    }else if(status === 429){
+      code = 'rate_limit';
+      message = `You've hit your ${label} usage limit. Try again in a bit, or check your quota at ${CONSOLE_URL[provider]}.`;
+    }else{
+      message = `${label} request failed (HTTP ${status})${providerMsg ? ': ' + providerMsg : ''}`;
+    }
+  }
+  const err = new Error(message);
+  err.status = status;
+  err.code = code;
+  err.provider = provider;
+  return err;
+}
+
+/* ---------- File intake & queue ---------- */
+
+el.browseBtn.addEventListener('click', () => el.fileInput.click());
+el.dropzone.addEventListener('click', (e) => { if(e.target === el.browseBtn) return; el.fileInput.click(); });
+el.fileInput.addEventListener('change', (e) => addFiles(e.target.files));
+
+['dragenter','dragover'].forEach(ev => el.dropzone.addEventListener(ev, (e) => {
+  e.preventDefault(); el.dropzone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(ev => el.dropzone.addEventListener(ev, (e) => {
+  e.preventDefault(); el.dropzone.classList.remove('drag');
+}));
+el.dropzone.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+function addFiles(fileList){
+  const files = Array.from(fileList).filter(f => /^image\/(jpeg|png|webp)$/.test(f.type));
+  const keyReady = hasAnyKey();
+  files.forEach(file => {
+    const id = 'img' + (++seq);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const item = {
+        id, file,
+        dataUrl: reader.result,
+        mediaType: file.type,
+        status: keyReady ? 'processing' : 'blocked',
+        result: null,
+        error: keyReady ? null : 'Add an API key in Settings to generate metadata.'
+      };
+      items.push(item);
+      if(!activeId) activeId = id;
+      render();
+      if(keyReady) enqueue(item);
+    };
+    reader.readAsDataURL(file);
+  });
+  el.fileInput.value = '';
+  if(!keyReady){ openSettings(); }
+}
+
+function resumeBlockedItems(){
+  if(!hasAnyKey()) return;
+  items.filter(i => i.status === 'blocked').forEach(i => enqueue(i));
+}
+
+function enqueue(item){
+  queue.push(item);
+  runQueue();
+}
+
+async function runQueue(){
+  if(queueRunning) return;
+  queueRunning = true;
+  while(queue.length){
+    const item = queue.shift();
+    if(items.includes(item)) await processItem(item);
+  }
+  queueRunning = false;
+}
+
+async function processItem(item){
+  if(!hasAnyKey()){
+    item.status = 'blocked';
+    item.error = 'Add an API key in Settings to generate metadata.';
+    render();
+    return;
+  }
+  item.status = 'processing';
+  item.error = null;
+  render();
+  try{
+    const { base64, mediaType } = await prepareImageForApi(item.dataUrl, item.mediaType);
+    const parsed = await callWithRetry(() => generateMetadata(base64, mediaType), 1);
+    item.result = parsed;
+    item.status = 'done';
+  }catch(err){
+    item.status = 'error';
+    item.error = (err && err.message) ? err.message : 'Something went wrong';
+    if(err && err.code === 'invalid_key' && err.provider){
+      settings[err.provider + 'Status'] = 'invalid';
+      renderSettingsUI();
+    }
+  }
+  render();
+}
+
+function prepareImageForApi(dataUrl, mediaType){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1568; // recommended max edge for vision input
+      let { width, height } = img;
+      const scale = Math.min(1, maxDim / Math.max(width, height));
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const outUrl = canvas.toDataURL('image/jpeg', 0.87);
+      resolve({ base64: outUrl.split(',')[1], mediaType: 'image/jpeg' });
+    };
+    img.onerror = () => resolve({ base64: dataUrl.split(',')[1], mediaType });
+    img.src = dataUrl;
+  });
+}
+
+async function callWithRetry(fn, retriesLeft){
+  try{
+    return await fn();
+  }catch(err){
+    const transient = err && err.status && [500,502,503,529].includes(err.status);
+    if(transient && retriesLeft > 0){
+      await new Promise(r => setTimeout(r, 1200));
+      return callWithRetry(fn, retriesLeft - 1);
+    }
+    throw err;
+  }
+}
+
+function generateMetadata(base64, mediaType){
+  if(settings.activeProvider === 'gemini') return callGemini(base64, mediaType);
+  if(settings.activeProvider === 'groq') return callGroq(base64, mediaType);
+  return callClaude(base64, mediaType);
+}
+
+async function callClaude(base64, mediaType){
+  const key = settings.claudeKey;
+  if(!key) throw apiError(400, 'claude', null, 'No Claude key set — add one in Settings.');
+
+  let response;
+  try{
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+              { type: "text", text: "Analyze this image and return the metadata JSON exactly as specified in the system prompt. Return ONLY the JSON object." }
+            ]
+          }
+        ]
+      })
+    });
+  }catch(e){
+    throw apiError(0, 'claude', null, "Could not reach Claude directly from the browser (network or CORS). Check Settings and try Test Connection.");
+  }
+
+  const raw = await response.text();
+  let data = null;
+  try{ data = JSON.parse(raw); }catch(e){}
+
+  if(!response.ok) throw apiError(response.status, 'claude', data);
+  if(!data) throw new Error('Claude returned a non-JSON response, try again in a moment.');
+
+  const textBlock = (data.content || []).find(b => b.type === 'text');
+  if(!textBlock) throw new Error('No text in the response — the model may have hit a content block.');
+
+  const clean = textBlock.text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  try{
+    return JSON.parse(clean);
+  }catch(e){
+    throw new Error("Could not parse Claude's JSON — it may have been cut off. Try again.");
+  }
+}
+
+async function callGemini(base64, mediaType){
+  const key = settings.geminiKey;
+  if(!key) throw apiError(400, 'gemini', null, 'No Gemini key set — add one in Settings.');
+
+  const model = 'gemini-2.5-flash';
+  let response;
+  try{
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: SYSTEM_PROMPT + "\n\nAnalyze the attached image and return ONLY the JSON object described above — no markdown, no commentary." },
+            { inline_data: { mime_type: mediaType, data: base64 } }
+          ]
+        }],
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 4000 }
+      })
+    });
+  }catch(e){
+    throw apiError(0, 'gemini', null, 'Could not reach Gemini — check your network connection.');
+  }
+
+  const raw = await response.text();
+  let data = null;
+  try{ data = JSON.parse(raw); }catch(e){}
+
+  if(!response.ok) throw apiError(response.status, 'gemini', data);
+  if(!data) throw new Error('Gemini returned a non-JSON response, try again in a moment.');
+
+  const text = data.candidates && data.candidates[0] && data.candidates[0].content &&
+               data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
+               data.candidates[0].content.parts[0].text;
+  if(!text) throw new Error('No content returned from Gemini — it may have blocked the image.');
+
+  const clean = text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  try{
+    return JSON.parse(clean);
+  }catch(e){
+    throw new Error("Could not parse Gemini's JSON — it may have been cut off. Try again.");
+  }
+}
+
+async function callGroq(base64, mediaType){
+  const key = settings.groqKey;
+  if(!key) throw apiError(400, 'groq', null, 'No Groq key set — add one in Settings.');
+
+  const model = 'qwen/qwen3.6-27b';
+  let response;
+  try{
+    response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Analyze this image and return the metadata JSON exactly as specified in the system prompt. Return ONLY the JSON object.' },
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } }
+            ]
+          }
+        ],
+        temperature: 0.7,
+        max_completion_tokens: 4000,
+        response_format: { type: 'json_object' }
+      })
+    });
+  }catch(e){
+    throw apiError(0, 'groq', null, 'Could not reach Groq — check your network connection.');
+  }
+
+  const raw = await response.text();
+  let data = null;
+  try{ data = JSON.parse(raw); }catch(e){}
+
+  if(!response.ok) throw apiError(response.status, 'groq', data);
+  if(!data) throw new Error('Groq returned a non-JSON response, try again in a moment.');
+
+  const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if(!text) throw new Error('No content returned from Groq — it may have blocked the image.');
+
+  const clean = text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  try{
+    return JSON.parse(clean);
+  }catch(e){
+    throw new Error("Could not parse Groq's JSON — it may have been cut off. Try again.");
+  }
+}
+
+/* ---------- Item actions ---------- */
+
+function retryItem(id){
+  const item = items.find(i => i.id === id);
+  if(!item) return;
+  if(!hasAnyKey()){ openSettings(); return; }
+  item.status = 'processing';
+  item.error = null;
+  render();
+  enqueue(item);
+}
+
+function removeItem(id){
+  items = items.filter(i => i.id !== id);
+  if(activeId === id){ activeId = items.length ? items[0].id : null; }
+  render();
+}
+
+function selectItem(id){
+  activeId = id;
+  activeTab = "adobe_stock";
+  render();
+}
+
+function showToast(msg){
+  el.toast.textContent = msg;
+  el.toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.toast.classList.remove('show'), 1600);
+}
+
+function copyText(text, label){
+  navigator.clipboard.writeText(text).then(() => showToast((label || 'Copied') + ' copied'))
+    .catch(() => showToast('Could not copy'));
+}
+
+/* ---------- Render ---------- */
+
+function render(){
+  el.filmstrip.innerHTML = '';
+  items.forEach(item => {
+    const frame = document.createElement('div');
+    frame.className = 'frame' + (item.id === activeId ? ' active' : '');
+    frame.innerHTML = `
+      <img src="${item.dataUrl}" alt="">
+      <div class="status ${item.status}"></div>
+      <div class="rm">Remove</div>
+    `;
+    frame.addEventListener('click', (e) => {
+      if(e.target.classList.contains('rm')){ removeItem(item.id); }
+      else{ selectItem(item.id); }
+    });
+    el.filmstrip.appendChild(frame);
+  });
+
+  el.emptyState.style.display = items.length ? 'none' : 'block';
+  el.stage.style.display = items.length ? 'grid' : 'none';
+
+  renderSettingsUI();
+
+  const active = items.find(i => i.id === activeId);
+  if(!active){ el.mat.innerHTML=''; el.panel.innerHTML=''; renderExport(); return; }
+
+  el.mat.innerHTML = `
+    <img src="${active.dataUrl}" alt="">
+    <div class="fname">${escapeHtml(active.file.name)}</div>
+  `;
+
+  if(active.status === 'processing'){
+    el.panel.innerHTML = `<div class="center-note">Analyzing image and drafting metadata…</div>`;
+  }else if(active.status === 'blocked'){
+    el.panel.innerHTML = `
+      <div class="warn-box">${escapeHtml(active.error)}</div>
+      <button class="small primary" style="margin-top:12px;" onclick="openSettings()">Open Settings</button>
+    `;
+  }else if(active.status === 'error'){
+    el.panel.innerHTML = `
+      <div class="error-box">${escapeHtml(active.error)}</div>
+      <button class="small" style="margin-top:12px;" onclick="retryItem('${active.id}')">Try again</button>
+    `;
+  }else if(active.status === 'done'){
+    renderResult(active);
+  }
+
+  renderExport();
+}
+
+function renderResult(item){
+  const r = item.result;
+  const tabsHtml = PLATFORM_ORDER.map(key => `
+    <button class="tab ${key === activeTab ? 'active' : ''}" onclick="setTab('${key}')">${PLATFORM_META[key].label}</button>
+  `).join('');
+
+  const flagsHtml = (r.flags && r.flags.length)
+    ? `<div class="flagbar"><b>Needs attention —</b> ${r.flags.map(escapeHtml).join(' · ')}</div>`
+    : '';
+
+  const p = r.platforms[activeTab] || { title: '', keywords: [] };
+  const kwText = p.keywords.join(', ');
+
+  el.panel.innerHTML = `
+    <p class="desc">${escapeHtml(r.description || '')}</p>
+    ${flagsHtml}
+    <div class="tabs">${tabsHtml}</div>
+
+    <div class="field">
+      <div class="field-head">
+        <label>Title</label>
+        <button class="ghost small" onclick="copyText(${attrEscape(p.title)}, 'Title')">Copy</button>
+      </div>
+      <div class="title-text">${escapeHtml(p.title || '')}</div>
+    </div>
+
+    <div class="field">
+      <div class="field-head">
+        <label>Keywords · <span class="kw-count">${p.keywords.length}</span></label>
+        <button class="ghost small" onclick="copyText(${attrEscape(kwText)}, 'Keywords')">Copy all</button>
+      </div>
+      <div class="kwlist">${p.keywords.map(k => `<span class="kw">${escapeHtml(k)}</span>`).join('')}</div>
+    </div>
+
+    <div class="cat-row">
+      <div>Category — <b>${escapeHtml(r.category_suggestion || '—')}</b></div>
+    </div>
+  `;
+}
+
+function setTab(key){ activeTab = key; render(); }
+
+function renderExport(){
+  const done = items.filter(i => i.status === 'done');
+  if(done.length === 0){ el.exportSection.innerHTML = ''; return; }
+  el.exportSection.innerHTML = `
+    <div class="export-row">
+      <p>Export bulk-upload CSVs for every processed image. Column layout is a close match to each platform's contributor template — double check against the exact template before uploading.</p>
+      ${PLATFORM_ORDER.map(key => `<button class="small" onclick="exportCsv('${key}')">Export ${PLATFORM_META[key].label} CSV</button>`).join('')}
+    </div>
+  `;
+}
+
+function exportCsv(platformKey){
+  const done = items.filter(i => i.status === 'done');
+  if(!done.length) return;
+
+  let headers, rows;
+  if(platformKey === 'adobe_stock'){
+    headers = ['Filename','Title','Keywords','Category'];
+    rows = done.map(i => {
+      const p = i.result.platforms.adobe_stock;
+      return [i.file.name, p.title, p.keywords.join(', '), i.result.category_suggestion || ''];
+    });
+  }else if(platformKey === 'shutterstock'){
+    headers = ['Filename','Description','Keywords','Categories'];
+    rows = done.map(i => {
+      const p = i.result.platforms.shutterstock;
+      return [i.file.name, p.title, p.keywords.join(', '), i.result.category_suggestion || ''];
+    });
+  }else if(platformKey === 'istock_getty'){
+    headers = ['Filename','Title','Keywords'];
+    rows = done.map(i => {
+      const p = i.result.platforms.istock_getty;
+      return [i.file.name, p.title, p.keywords.join(', ')];
+    });
+  }else{
+    headers = ['Filename','Title','Keywords'];
+    rows = done.map(i => {
+      const p = i.result.platforms.freepik_vecteezy;
+      return [i.file.name, p.title, p.keywords.join(', ')];
+    });
+  }
+
+  const csv = [headers, ...rows].map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')
+  ).join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${platformKey}-metadata.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('CSV downloaded');
+}
+
+function escapeHtml(str){
+  return String(str == null ? '' : str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function attrEscape(str){
+  return JSON.stringify(String(str == null ? '' : str));
+}
+
+loadSettings();
+render();
+</script>
+</body>
+</html>
